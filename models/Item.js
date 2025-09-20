@@ -13,25 +13,10 @@ const itemSchema = new mongoose.Schema({
     enum: ['Primary', 'Kirana'],
     default: 'Primary'
   },
-  purchasePrice: {
-    type: Number,
-    required: [true, 'Purchase price is required'],
-    min: [0, 'Purchase price cannot be negative']
-  },
-  salePrice: {
-    type: Number,
-    required: [true, 'Sale price is required'],
-    min: [0, 'Sale price cannot be negative']
-  },
   openingStock: {
     type: Number,
     required: [true, 'Opening stock is required'],
     min: [0, 'Opening stock cannot be negative']
-  },
-  asOfDate: {
-    type: String,
-    required: [true, 'As of date is required'],
-    match: [/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format']
   },
   lowStockAlert: {
     type: Number,
@@ -48,8 +33,6 @@ const itemSchema = new mongoose.Schema({
     save: function(next) {
       // If this is a new Bardana item, ensure it has the correct properties
       if (this.isUniversal && this.productName === 'Bardana') {
-        this.purchasePrice = this.purchasePrice || 0;
-        this.salePrice = this.salePrice || 0;
         this.openingStock = this.openingStock || 0;
         this.lowStockAlert = this.lowStockAlert || 10;
       }

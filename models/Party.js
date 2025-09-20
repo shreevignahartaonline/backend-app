@@ -22,7 +22,6 @@ const partySchema = new mongoose.Schema({
   balance: {
     type: Number,
     default: 0,
-    min: [0, 'Balance cannot be negative']
   },
   address: {
     type: String,
@@ -122,10 +121,7 @@ partySchema.statics.updateBalance = async function(partyId, amount, operation = 
       party.balance = amount;
     }
     
-    // Ensure balance doesn't go negative
-    if (party.balance < 0) {
-      party.balance = 0;
-    }
+    // Allow negative balances - no floor restriction
     
     await party.save();
     return party;

@@ -158,14 +158,13 @@ const validateWhatsAppRequest = (req, res, next) => {
 };
 
 const validateItem = (req, res, next) => {
-  const { productName, category, purchasePrice, salePrice, openingStock, asOfDate, lowStockAlert } = req.body;
+  const { productName, category, openingStock, lowStockAlert } = req.body;
 
   // Check required fields
-  if (!productName || !category || purchasePrice === undefined || salePrice === undefined || 
-      openingStock === undefined || !asOfDate || lowStockAlert === undefined) {
+  if (!productName || !category || openingStock === undefined || lowStockAlert === undefined) {
     return res.status(400).json({
       success: false,
-      error: 'Missing required fields: productName, category, purchasePrice, salePrice, openingStock, asOfDate, lowStockAlert'
+      error: 'Missing required fields: productName, category, openingStock, lowStockAlert'
     });
   }
 
@@ -186,20 +185,6 @@ const validateItem = (req, res, next) => {
   }
 
   // Validate numeric fields
-  if (typeof purchasePrice !== 'number' || purchasePrice < 0) {
-    return res.status(400).json({
-      success: false,
-      error: 'Purchase price must be a non-negative number'
-    });
-  }
-
-  if (typeof salePrice !== 'number' || salePrice < 0) {
-    return res.status(400).json({
-      success: false,
-      error: 'Sale price must be a non-negative number'
-    });
-  }
-
   if (typeof openingStock !== 'number' || openingStock < 0) {
     return res.status(400).json({
       success: false,
@@ -211,15 +196,6 @@ const validateItem = (req, res, next) => {
     return res.status(400).json({
       success: false,
       error: 'Low stock alert must be a non-negative number'
-    });
-  }
-
-  // Validate date format (YYYY-MM-DD)
-  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-  if (!dateRegex.test(asOfDate)) {
-    return res.status(400).json({
-      success: false,
-      error: 'As of date must be in YYYY-MM-DD format'
     });
   }
 

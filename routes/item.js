@@ -70,10 +70,7 @@ router.post('/', validateItem, async (req, res) => {
     const {
       productName,
       category,
-      purchasePrice,
-      salePrice,
       openingStock,
-      asOfDate,
       lowStockAlert,
       isUniversal = false
     } = req.body;
@@ -93,10 +90,7 @@ router.post('/', validateItem, async (req, res) => {
     const newItem = new Item({
       productName,
       category,
-      purchasePrice,
-      salePrice,
       openingStock,
-      asOfDate,
       lowStockAlert,
       isUniversal
     });
@@ -131,10 +125,7 @@ router.put('/:id', validateItem, async (req, res) => {
     const {
       productName,
       category,
-      purchasePrice,
-      salePrice,
       openingStock,
-      asOfDate,
       lowStockAlert
     } = req.body;
     
@@ -168,10 +159,7 @@ router.put('/:id', validateItem, async (req, res) => {
       {
         productName,
         category,
-        purchasePrice,
-        salePrice,
         openingStock,
-        asOfDate,
         lowStockAlert
       },
       { new: true, runValidators: true }
@@ -242,11 +230,11 @@ router.get('/stats/summary', async (req, res) => {
     const kiranaItems = await Item.countDocuments({ category: 'Kirana' });
     const universalItems = await Item.countDocuments({ isUniversal: true });
     
-    // Calculate total stock value
-    const items = await Item.find({}, 'openingStock purchasePrice');
-    const totalStockValue = items.reduce((total, item) => {
-      return total + (item.openingStock * 30 * item.purchasePrice); // Convert bags to kg
-    }, 0);
+    // Calculate total stock count
+    const totalStockCount = await Item.aggregate([
+      { $group: { _id: null, totalStock: { $sum: '$openingStock' } } }
+    ]);
+    const totalStock = totalStockCount.length > 0 ? totalStockCount[0].totalStock : 0;
     
     // Get low stock items
     const lowStockItems = await Item.find({
@@ -260,7 +248,7 @@ router.get('/stats/summary', async (req, res) => {
         primaryItems,
         kiranaItems,
         universalItems,
-        totalStockValue: Math.round(totalStockValue),
+        totalStock,
         lowStockCount: lowStockItems.length,
         lowStockItems: lowStockItems.map(item => ({
           id: item._id,
@@ -301,10 +289,7 @@ router.post('/initialize-bardana', async (req, res) => {
     const bardanaItem = new Item({
       productName: 'Bardana',
       category: 'Primary',
-      purchasePrice: 0,
-      salePrice: 0,
       openingStock: 0,
-      asOfDate: new Date().toISOString().split('T')[0],
       lowStockAlert: 10,
       isUniversal: true
     });

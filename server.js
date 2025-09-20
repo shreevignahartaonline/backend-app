@@ -60,7 +60,7 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(helmet());
-app.use(cors());
+app.use(cors("*"));
 
 // Configure logging - only log errors (4xx, 5xx)
 app.use(morgan('combined', {
