@@ -3,6 +3,7 @@ const router = express.Router();
 const Sale = require('../models/Sale');
 const Party = require('../models/Party');
 const Item = require('../models/Item');
+const { validateSaleRequest } = require('../middleware/validation');
 
 // GET /api/sales - Get all sales with optional filtering
 router.get('/', async (req, res) => {
@@ -84,9 +85,10 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/sales - Create new sale
-router.post('/', async (req, res) => {
+router.post('/', validateSaleRequest, async (req, res) => {
   try {
     const { 
+      invoiceNo,
       partyName, 
       phoneNumber, 
       items, 
@@ -94,23 +96,14 @@ router.post('/', async (req, res) => {
       pdfUri 
     } = req.body;
     
-    // Validate required fields
-    if (!partyName || !phoneNumber || !items || !date) {
+    // Check if invoice number already exists
+    const invoiceExists = await Sale.isInvoiceNumberExists(invoiceNo);
+    if (invoiceExists) {
       return res.status(400).json({
         success: false,
-        error: 'Party name, phone number, items, and date are required'
+        error: 'Invoice number already exists. Please use a different invoice number.'
       });
     }
-    
-    if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'At least one item is required'
-      });
-    }
-    
-    // Generate invoice number
-    const invoiceNo = await Sale.generateNextInvoiceNumber();
     
     // Find or create party
     const party = await Party.findOrCreate({
@@ -209,6 +202,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { 
+      invoiceNo,
       partyName, 
       phoneNumber, 
       items, 
@@ -225,11 +219,23 @@ router.put('/:id', async (req, res) => {
       });
     }
     
+    // Check if invoice number is being changed and if it already exists
+    if (invoiceNo && invoiceNo !== sale.invoiceNo) {
+      const invoiceExists = await Sale.isInvoiceNumberExists(invoiceNo);
+      if (invoiceExists) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invoice number already exists. Please use a different invoice number.'
+        });
+      }
+    }
+    
     // Store original values for rollback
     const originalTotalAmount = sale.totalAmount;
     const originalItems = [...sale.items];
     
     // Update fields
+    if (invoiceNo) sale.invoiceNo = invoiceNo;
     if (partyName) sale.partyName = partyName;
     if (phoneNumber) sale.phoneNumber = phoneNumber;
     if (items) sale.items = items;

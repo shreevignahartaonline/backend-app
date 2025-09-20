@@ -26,10 +26,17 @@ const storage = multer.diskStorage({
   }
 });
 
+// Parse MAX_FILE_SIZE from environment (default to 50MB for PDFs)
+const maxFileSize = process.env.MAX_FILE_SIZE 
+  ? parseInt(process.env.MAX_FILE_SIZE) 
+  : 50 * 1024 * 1024; // 50MB default
+
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024 // 10MB default
+    fileSize: maxFileSize,
+    files: 1, // Only allow one file at a time
+    fields: 10 // Allow up to 10 form fields
   },
   fileFilter: (req, file, cb) => {
     if (file.mimetype === 'application/pdf') {
@@ -94,6 +101,44 @@ router.post('/', upload.single('file'), validateUploadRequest, async (req, res) 
   }
 });
 
+// Error handling middleware for multer errors
+router.use((error, req, res, next) => {
+  if (error instanceof multer.MulterError) {
+    switch (error.code) {
+      case 'LIMIT_FILE_SIZE':
+        res.status(400).json({
+          success: false,
+          error: `File too large. Maximum size allowed is ${Math.round(maxFileSize / (1024 * 1024))}MB`,
+          code: 'FILE_TOO_LARGE',
+          maxSize: maxFileSize
+        });
+        break;
+      case 'LIMIT_FILE_COUNT':
+        res.status(400).json({
+          success: false,
+          error: 'Too many files. Only one file is allowed per request.',
+          code: 'TOO_MANY_FILES'
+        });
+        break;
+      case 'LIMIT_FIELD_COUNT':
+        res.status(400).json({
+          success: false,
+          error: 'Too many form fields.',
+          code: 'TOO_MANY_FIELDS'
+        });
+        break;
+      default:
+        res.status(400).json({
+          success: false,
+          error: `Upload error: ${error.message}`,
+          code: error.code
+        });
+    }
+  } else {
+    next(error);
+  }
+});
+
 // Get upload status
 router.get('/status', (req, res) => {
   res.json({
@@ -102,8 +147,13 @@ router.get('/status', (req, res) => {
     cloudinary: CloudinaryService.getConfigInfo(),
     wasender: WASenderService.getConfigInfo(),
     uploads: {
-      max_file_size: process.env.MAX_FILE_SIZE || '10MB',
-      allowed_types: ['application/pdf']
+      max_file_size: `${Math.round(maxFileSize / (1024 * 1024))}MB`,
+      max_file_size_bytes: maxFileSize,
+      allowed_types: ['application/pdf'],
+      limits: {
+        files: 1,
+        fields: 10
+      }
     }
   });
 });

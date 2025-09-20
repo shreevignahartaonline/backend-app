@@ -33,8 +33,14 @@ const purchaseSchema = new mongoose.Schema({
   billNo: {
     type: String,
     required: [true, 'Bill number is required'],
-    unique: true,
-    trim: true
+    trim: true,
+    validate: {
+      validator: function(v) {
+        // Basic validation for bill number format
+        return /^[A-Za-z0-9\-_]+$/.test(v) && v.length >= 1 && v.length <= 50;
+      },
+      message: 'Bill number must contain only alphanumeric characters, hyphens, and underscores (1-50 characters)'
+    }
   },
   partyName: {
     type: String,
@@ -135,24 +141,14 @@ purchaseSchema.methods.getFormattedDetails = function() {
   };
 };
 
-// Static method to generate next bill number
-purchaseSchema.statics.generateNextBillNumber = async function() {
+// Static method to check if bill number already exists
+purchaseSchema.statics.isBillNumberExists = async function(billNo) {
   try {
-    const lastPurchase = await this.findOne().sort({ billNo: -1 });
-    
-    if (!lastPurchase) {
-      return '1';
-    }
-    
-    const lastNumber = parseInt(lastPurchase.billNo);
-    if (isNaN(lastNumber)) {
-      return '1';
-    }
-    
-    return (lastNumber + 1).toString();
+    const existingPurchase = await this.findOne({ billNo: billNo.trim() });
+    return !!existingPurchase;
   } catch (error) {
-    console.error('Error generating bill number:', error);
-    return '1';
+    console.error('Error checking bill number:', error);
+    return false;
   }
 };
 

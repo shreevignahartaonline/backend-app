@@ -33,8 +33,14 @@ const saleSchema = new mongoose.Schema({
   invoiceNo: {
     type: String,
     required: [true, 'Invoice number is required'],
-    unique: true,
-    trim: true
+    trim: true,
+    validate: {
+      validator: function(v) {
+        // Basic validation for invoice number format
+        return /^[A-Za-z0-9\-_]+$/.test(v) && v.length >= 1 && v.length <= 50;
+      },
+      message: 'Invoice number must contain only alphanumeric characters, hyphens, and underscores (1-50 characters)'
+    }
   },
   partyName: {
     type: String,
@@ -135,24 +141,14 @@ saleSchema.methods.getFormattedDetails = function() {
   };
 };
 
-// Static method to generate next invoice number
-saleSchema.statics.generateNextInvoiceNumber = async function() {
+// Static method to check if invoice number already exists
+saleSchema.statics.isInvoiceNumberExists = async function(invoiceNo) {
   try {
-    const lastSale = await this.findOne().sort({ invoiceNo: -1 });
-    
-    if (!lastSale) {
-      return '1';
-    }
-    
-    const lastNumber = parseInt(lastSale.invoiceNo);
-    if (isNaN(lastNumber)) {
-      return '1';
-    }
-    
-    return (lastNumber + 1).toString();
+    const existingSale = await this.findOne({ invoiceNo: invoiceNo.trim() });
+    return !!existingSale;
   } catch (error) {
-    console.error('Error generating invoice number:', error);
-    return '1';
+    console.error('Error checking invoice number:', error);
+    return false;
   }
 };
 

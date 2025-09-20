@@ -3,6 +3,7 @@ const router = express.Router();
 const Purchase = require('../models/Purchase');
 const Party = require('../models/Party');
 const Item = require('../models/Item');
+const { validatePurchaseRequest } = require('../middleware/validation');
 
 // GET /api/purchases - Get all purchases with optional filtering
 router.get('/', async (req, res) => {
@@ -84,9 +85,10 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/purchases - Create new purchase
-router.post('/', async (req, res) => {
+router.post('/', validatePurchaseRequest, async (req, res) => {
   try {
     const { 
+      billNo,
       partyName, 
       phoneNumber, 
       items, 
@@ -94,23 +96,14 @@ router.post('/', async (req, res) => {
       pdfUri 
     } = req.body;
     
-    // Validate required fields
-    if (!partyName || !phoneNumber || !items || !date) {
+    // Check if bill number already exists
+    const billExists = await Purchase.isBillNumberExists(billNo);
+    if (billExists) {
       return res.status(400).json({
         success: false,
-        error: 'Party name, phone number, items, and date are required'
+        error: 'Bill number already exists. Please use a different bill number.'
       });
     }
-    
-    if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'At least one item is required'
-      });
-    }
-    
-    // Generate bill number
-    const billNo = await Purchase.generateNextBillNumber();
     
     // Find or create party
     const party = await Party.findOrCreate({
@@ -200,6 +193,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { 
+      billNo,
       partyName, 
       phoneNumber, 
       items, 
@@ -216,11 +210,23 @@ router.put('/:id', async (req, res) => {
       });
     }
     
+    // Check if bill number is being changed and if it already exists
+    if (billNo && billNo !== purchase.billNo) {
+      const billExists = await Purchase.isBillNumberExists(billNo);
+      if (billExists) {
+        return res.status(400).json({
+          success: false,
+          error: 'Bill number already exists. Please use a different bill number.'
+        });
+      }
+    }
+    
     // Store original values for rollback
     const originalTotalAmount = purchase.totalAmount;
     const originalItems = [...purchase.items];
     
     // Update fields
+    if (billNo) purchase.billNo = billNo;
     if (partyName) purchase.partyName = partyName;
     if (phoneNumber) purchase.phoneNumber = phoneNumber;
     if (items) purchase.items = items;

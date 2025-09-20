@@ -1,3 +1,201 @@
+const validateInvoiceNumber = (invoiceNo) => {
+  if (!invoiceNo || typeof invoiceNo !== 'string') {
+    return false;
+  }
+  
+  const trimmed = invoiceNo.trim();
+  
+  // Check length (1-50 characters)
+  if (trimmed.length < 1 || trimmed.length > 50) {
+    return false;
+  }
+  
+  // Check format: alphanumeric characters, hyphens, and underscores only
+  return /^[A-Za-z0-9\-_]+$/.test(trimmed);
+};
+
+const validateBillNumber = (billNo) => {
+  if (!billNo || typeof billNo !== 'string') {
+    return false;
+  }
+  
+  const trimmed = billNo.trim();
+  
+  // Check length (1-50 characters)
+  if (trimmed.length < 1 || trimmed.length > 50) {
+    return false;
+  }
+  
+  // Check format: alphanumeric characters, hyphens, and underscores only
+  return /^[A-Za-z0-9\-_]+$/.test(trimmed);
+};
+
+const validateSaleRequest = (req, res, next) => {
+  const { 
+    invoiceNo,
+    partyName, 
+    phoneNumber, 
+    items, 
+    date, 
+    pdfUri 
+  } = req.body;
+
+  // Validate required fields
+  if (!invoiceNo || !partyName || !phoneNumber || !items || !date) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invoice number, party name, phone number, items, and date are required'
+    });
+  }
+
+  // Validate invoice number format
+  if (!validateInvoiceNumber(invoiceNo)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invoice number must contain only alphanumeric characters, hyphens, and underscores (1-50 characters)'
+    });
+  }
+
+  // Validate phone number
+  if (!validatePhoneNumber(phoneNumber)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid phone number format. Please include country code (e.g., +91xxxxxxxxxx)'
+    });
+  }
+
+  // Validate items array
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'At least one item is required'
+    });
+  }
+
+  // Validate each item
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (!item.itemName || !item.quantity || !item.rate) {
+      return res.status(400).json({
+        success: false,
+        error: `Item ${i + 1}: itemName, quantity, and rate are required`
+      });
+    }
+    
+    if (typeof item.quantity !== 'number' || item.quantity <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Item ${i + 1}: quantity must be a positive number`
+      });
+    }
+    
+    if (typeof item.rate !== 'number' || item.rate <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Item ${i + 1}: rate must be a positive number`
+      });
+    }
+  }
+
+  // Validate date format (MM/DD/YYYY)
+  const dateRegex = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
+  if (!dateRegex.test(date)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Date must be in MM/DD/YYYY format'
+    });
+  }
+
+  // Sanitize phone number
+  req.body.phoneNumber = sanitizePhoneNumber(phoneNumber);
+  req.body.invoiceNo = invoiceNo.trim();
+  
+  next();
+};
+
+const validatePurchaseRequest = (req, res, next) => {
+  const { 
+    billNo,
+    partyName, 
+    phoneNumber, 
+    items, 
+    date, 
+    pdfUri 
+  } = req.body;
+
+  // Validate required fields
+  if (!billNo || !partyName || !phoneNumber || !items || !date) {
+    return res.status(400).json({
+      success: false,
+      error: 'Bill number, party name, phone number, items, and date are required'
+    });
+  }
+
+  // Validate bill number format
+  if (!validateBillNumber(billNo)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Bill number must contain only alphanumeric characters, hyphens, and underscores (1-50 characters)'
+    });
+  }
+
+  // Validate phone number
+  if (!validatePhoneNumber(phoneNumber)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid phone number format. Please include country code (e.g., +91xxxxxxxxxx)'
+    });
+  }
+
+  // Validate items array
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'At least one item is required'
+    });
+  }
+
+  // Validate each item
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (!item.itemName || !item.quantity || !item.rate) {
+      return res.status(400).json({
+        success: false,
+        error: `Item ${i + 1}: itemName, quantity, and rate are required`
+      });
+    }
+    
+    if (typeof item.quantity !== 'number' || item.quantity <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Item ${i + 1}: quantity must be a positive number`
+      });
+    }
+    
+    if (typeof item.rate !== 'number' || item.rate <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Item ${i + 1}: rate must be a positive number`
+      });
+    }
+  }
+
+  // Validate date format (MM/DD/YYYY)
+  const dateRegex = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
+  if (!dateRegex.test(date)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Date must be in MM/DD/YYYY format'
+    });
+  }
+
+  // Sanitize phone number
+  req.body.phoneNumber = sanitizePhoneNumber(phoneNumber);
+  req.body.billNo = billNo.trim();
+  
+  next();
+};
+
 const validatePhoneNumber = (phoneNumber) => {
   const cleaned = phoneNumber.replace(/[^\d+]/g, '');
   return /^\+[1-9]\d{9,14}$/.test(cleaned);
@@ -8,7 +206,7 @@ const validateFileType = (mimetype) => {
   return allowedTypes.includes(mimetype);
 };
 
-const validateFileSize = (size, maxSize = 10 * 1024 * 1024) => {
+const validateFileSize = (size, maxSize = 50 * 1024 * 1024) => {
   return size <= maxSize;
 };
 
@@ -35,7 +233,7 @@ const validateUploadRequest = (req, res, next) => {
   if (!validateFileSize(req.file.size)) {
     return res.status(400).json({
       success: false,
-      error: 'File size exceeds maximum limit of 10MB'
+      error: 'File size exceeds maximum limit of 50MB'
     });
   }
 
@@ -207,6 +405,10 @@ const validateItem = (req, res, next) => {
 
 module.exports = {
   validatePhoneNumber,
+  validateInvoiceNumber,
+  validateBillNumber,
+  validateSaleRequest,
+  validatePurchaseRequest,
   validateFileType,
   validateFileSize,
   sanitizePhoneNumber,
