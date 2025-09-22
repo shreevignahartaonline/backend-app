@@ -310,6 +310,85 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// DELETE /api/sales/bulk - Delete multiple sales
+router.delete('/bulk', async (req, res) => {
+  try {
+    const { saleIds } = req.body;
+    
+    if (!saleIds || !Array.isArray(saleIds) || saleIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Sale IDs array is required'
+      });
+    }
+    
+    // Find all sales to be deleted
+    const sales = await Sale.find({ _id: { $in: saleIds } });
+    
+    if (sales.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No sales found to delete'
+      });
+    }
+    
+    // Process each sale for stock restoration and party balance updates
+    for (const sale of sales) {
+      // Restore stock levels
+      for (const saleItem of sale.items) {
+        try {
+          const item = await Item.findById(saleItem.id);
+          if (item) {
+            const quantityInBags = saleItem.quantity / 30;
+            item.openingStock += quantityInBags;
+            await item.save();
+          }
+        } catch (itemError) {
+          console.error(`Error restoring stock for item ${saleItem.id}:`, itemError);
+        }
+      }
+      
+      // Restore Bardana stock
+      try {
+        const bardanaItem = await Item.findOne({ 
+          isUniversal: true, 
+          productName: 'Bardana' 
+        });
+        
+        if (bardanaItem) {
+          const totalKgSold = sale.items.reduce((sum, item) => sum + item.quantity, 0);
+          const bardanaBagsToRestore = totalKgSold / 30;
+          
+          bardanaItem.openingStock += bardanaBagsToRestore;
+          await bardanaItem.save();
+        }
+      } catch (bardanaError) {
+        console.error('Error restoring Bardana stock:', bardanaError);
+      }
+      
+      // Update party balance (subtract the amount)
+      if (sale.partyId) {
+        await Party.updateBalance(sale.partyId, sale.totalAmount, 'subtract');
+      }
+    }
+    
+    // Delete all sales
+    const deleteResult = await Sale.deleteMany({ _id: { $in: saleIds } });
+    
+    res.json({
+      success: true,
+      message: `${deleteResult.deletedCount} sales deleted successfully`,
+      deletedCount: deleteResult.deletedCount
+    });
+  } catch (error) {
+    console.error('Error deleting sales:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete sales'
+    });
+  }
+});
+
 // DELETE /api/sales/:id - Delete sale
 router.delete('/:id', async (req, res) => {
   try {

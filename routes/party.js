@@ -64,7 +64,7 @@ router.get('/:id', async (req, res) => {
 // POST /api/parties - Create new party
 router.post('/', async (req, res) => {
   try {
-    const { name, phoneNumber, address, email } = req.body;
+    const { name, phoneNumber, address, email, balance } = req.body;
     
     // Validate required fields
     if (!name || !phoneNumber) {
@@ -92,7 +92,7 @@ router.post('/', async (req, res) => {
       phoneNumber,
       address,
       email,
-      balance: 0
+      balance: balance || 0
     });
     
     await party.save();

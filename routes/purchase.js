@@ -125,8 +125,8 @@ router.post('/', validatePurchaseRequest, async (req, res) => {
     
     await purchase.save();
     
-    // Update party balance (add to outstanding amount - we owe them)
-    await Party.updateBalance(party._id, purchase.totalAmount, 'add');
+    // Update party balance (subtract from outstanding amount - we owe them less)
+    await Party.updateBalance(party._id, purchase.totalAmount, 'subtract');
     
     // Update stock levels for items (increase stock on purchase)
     for (const purchaseItem of items) {
@@ -238,7 +238,7 @@ router.put('/:id', async (req, res) => {
     // Update party balance if total amount changed
     if (purchase.partyId && originalTotalAmount !== purchase.totalAmount) {
       const balanceDifference = purchase.totalAmount - originalTotalAmount;
-      await Party.updateBalance(purchase.partyId, balanceDifference, 'add');
+      await Party.updateBalance(purchase.partyId, balanceDifference, 'subtract');
     }
     
     // Update stock levels if items changed
@@ -327,6 +327,95 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// DELETE /api/purchases/bulk - Delete multiple purchases
+router.delete('/bulk', async (req, res) => {
+  try {
+    const { purchaseIds } = req.body;
+    
+    if (!purchaseIds || !Array.isArray(purchaseIds) || purchaseIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Purchase IDs array is required'
+      });
+    }
+    
+    // Find all purchases to be deleted
+    const purchases = await Purchase.find({ _id: { $in: purchaseIds } });
+    
+    if (purchases.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No purchases found to delete'
+      });
+    }
+    
+    // Process each purchase for stock restoration and party balance updates
+    for (const purchase of purchases) {
+      // Restore stock levels (subtract what was added during purchase)
+      for (const purchaseItem of purchase.items) {
+        try {
+          const item = await Item.findById(purchaseItem.id);
+          if (item) {
+            const quantityInBags = purchaseItem.quantity / 30;
+            item.openingStock -= quantityInBags;
+            
+            // Ensure stock doesn't go negative
+            if (item.openingStock < 0) {
+              item.openingStock = 0;
+            }
+            
+            await item.save();
+          }
+        } catch (itemError) {
+          console.error(`Error restoring stock for item ${purchaseItem.id}:`, itemError);
+        }
+      }
+      
+      // Restore Bardana stock
+      try {
+        const bardanaItem = await Item.findOne({ 
+          isUniversal: true, 
+          productName: 'Bardana' 
+        });
+        
+        if (bardanaItem) {
+          const totalKgPurchased = purchase.items.reduce((sum, item) => sum + item.quantity, 0);
+          const bardanaBagsToRestore = totalKgPurchased / 30;
+          
+          bardanaItem.openingStock -= bardanaBagsToRestore;
+          if (bardanaItem.openingStock < 0) {
+            bardanaItem.openingStock = 0;
+          }
+          
+          await bardanaItem.save();
+        }
+      } catch (bardanaError) {
+        console.error('Error restoring Bardana stock:', bardanaError);
+      }
+      
+      // Update party balance (add back the amount - reverse the original subtract)
+      if (purchase.partyId) {
+        await Party.updateBalance(purchase.partyId, purchase.totalAmount, 'add');
+      }
+    }
+    
+    // Delete all purchases
+    const deleteResult = await Purchase.deleteMany({ _id: { $in: purchaseIds } });
+    
+    res.json({
+      success: true,
+      message: `${deleteResult.deletedCount} purchases deleted successfully`,
+      deletedCount: deleteResult.deletedCount
+    });
+  } catch (error) {
+    console.error('Error deleting purchases:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete purchases'
+    });
+  }
+});
+
 // DELETE /api/purchases/:id - Delete purchase
 router.delete('/:id', async (req, res) => {
   try {
@@ -381,9 +470,9 @@ router.delete('/:id', async (req, res) => {
       console.error('Error restoring Bardana stock:', bardanaError);
     }
     
-    // Update party balance (subtract the amount - we no longer owe them this amount)
+    // Update party balance (add back the amount - reverse the original subtract)
     if (purchase.partyId) {
-      await Party.updateBalance(purchase.partyId, purchase.totalAmount, 'subtract');
+      await Party.updateBalance(purchase.partyId, purchase.totalAmount, 'add');
     }
     
     await Purchase.findByIdAndDelete(req.params.id);

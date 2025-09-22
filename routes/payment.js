@@ -272,7 +272,12 @@ router.put('/:id', async (req, res) => {
     if (originalAmount !== payment.amount && payment.partyId) {
       try {
         // Reverse the original payment
-        const reverseOperation = 'add';
+        let reverseOperation;
+        if (payment.type === 'payment-in') {
+          reverseOperation = 'add'; // Reverse subtract with add
+        } else if (payment.type === 'payment-out') {
+          reverseOperation = 'subtract'; // Reverse add with subtract
+        }
         await Party.updateBalance(originalPartyId, originalAmount, reverseOperation);
         
         // Apply the new payment
@@ -322,7 +327,12 @@ router.delete('/:id', async (req, res) => {
     // Reverse the party balance update
     if (payment.partyId) {
       try {
-        const reverseOperation = 'add';
+        let reverseOperation;
+        if (payment.type === 'payment-in') {
+          reverseOperation = 'add'; // Reverse subtract with add
+        } else if (payment.type === 'payment-out') {
+          reverseOperation = 'subtract'; // Reverse add with subtract
+        }
         await Party.updateBalance(payment.partyId, payment.amount, reverseOperation);
       } catch (balanceError) {
         console.error('Error reversing party balance:', balanceError);

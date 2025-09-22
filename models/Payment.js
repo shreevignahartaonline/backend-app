@@ -280,9 +280,15 @@ paymentSchema.statics.updatePartyBalance = async function(payment) {
       return;
     }
     
-    // For payment-in: reduce customer balance (they paid us)
-    // For payment-out: reduce supplier balance (we paid them)
-    const operation = 'subtract';
+    // For payment-in: subtract amount (money coming into business)
+    // For payment-out: add amount (money going out of business)
+    let operation;
+    if (payment.type === 'payment-in') {
+      operation = 'subtract'; // Money coming in, reduce party balance
+    } else if (payment.type === 'payment-out') {
+      operation = 'add'; // Money going out, increase party balance
+    }
+    
     await Party.updateBalance(payment.partyId, payment.amount, operation);
   } catch (error) {
     console.error('Error updating party balance:', error);
